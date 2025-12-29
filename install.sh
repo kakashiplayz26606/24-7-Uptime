@@ -19,64 +19,74 @@ echo ""
 echo "▶ Setting up environment..."
 sleep 1
 
-# ----------------------------
-# Install Python if missing
-# ----------------------------
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "[+] Installing Python..."
-  sudo apt update -y
-  sudo apt install -y python3 python3-venv python3-pip
+# -----------------------------------
+# Detect python
+# -----------------------------------
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON=python
+else
+  echo "❌ Python not found. Install Python first."
+  exit 1
 fi
 
-# ----------------------------
-# Create virtual environment
-# ----------------------------
-if [ ! -d ".venv" ]; then
-  echo "[+] Creating virtual environment..."
-  python3 -m venv .venv
+# -----------------------------------
+# Try creating venv (safe)
+# -----------------------------------
+USE_VENV=false
+
+if $PYTHON -m venv .venv >/dev/null 2>&1; then
+  if [ -f ".venv/bin/python" ]; then
+    USE_VENV=true
+    PYTHON=".venv/bin/python"
+    echo "[✓] Virtual environment ready"
+  fi
 fi
 
-# Activate venv
-source .venv/bin/activate
+# -----------------------------------
+# Install dependencies
+# -----------------------------------
+echo "[+] Installing Python packages..."
 
-# ----------------------------
-# Install Python deps safely
-# ----------------------------
-echo "[+] Installing Python packages inside venv..."
-pip install --upgrade pip
-pip install fastapi uvicorn
-
-# ----------------------------
-# Install cloudflared
-# ----------------------------
-if ! command -v cloudflared >/dev/null 2>&1; then
-  echo "[+] Installing Cloudflare Tunnel..."
-  curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-  chmod +x cloudflared
-  sudo mv cloudflared /usr/local/bin/cloudflared
+if [ "$USE_VENV" = true ]; then
+  "$PYTHON" -m pip install --upgrade pip
+  "$PYTHON" -m pip install fastapi uvicorn
+else
+  echo "[!] Falling back to user install (no venv)"
+  $PYTHON -m pip install --user fastapi uvicorn || true
 fi
 
-# ----------------------------
+# -----------------------------------
 # Download connector
-# ----------------------------
+# -----------------------------------
 echo "[+] Downloading connector..."
 curl -fsSL https://raw.githubusercontent.com/kakashiplayz26606/24-7-Uptime/main/connector.py -o connector.py
 
-# ----------------------------
+# -----------------------------------
+# Install cloudflared locally (NO sudo)
+# -----------------------------------
+if [ ! -f "./cloudflared" ]; then
+  echo "[+] Downloading Cloudflare Tunnel..."
+  curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+  chmod +x cloudflared
+fi
+
+# -----------------------------------
 # Start backend
-# ----------------------------
+# -----------------------------------
 echo "[+] Starting FastAPI backend..."
-nohup .venv/bin/python connector.py > connector.log 2>&1 &
+nohup $PYTHON connector.py > connector.log 2>&1 &
 
 sleep 2
 
-# ----------------------------
+# -----------------------------------
 # Start Cloudflare Tunnel
-# ----------------------------
+# -----------------------------------
 echo ""
 echo "========================================"
 echo " 🌍 YOUR PUBLIC 24/7 URL WILL APPEAR BELOW"
 echo "========================================"
 echo ""
 
-cloudflared tunnel --url http://localhost:8080
+./cloudflared tunnel --url http://localhost:8080
