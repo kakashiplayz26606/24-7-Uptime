@@ -27,12 +27,12 @@ if command -v python3 >/dev/null 2>&1; then
 elif command -v python >/dev/null 2>&1; then
   PYTHON=python
 else
-  echo "❌ Python not found."
+  echo "❌ Python not found"
   exit 1
 fi
 
 # -----------------------------
-# Try venv (safe)
+# Create venv safely
 # -----------------------------
 USE_VENV=false
 if $PYTHON -m venv .venv >/dev/null 2>&1; then
@@ -50,9 +50,40 @@ $PYTHON -m pip install --upgrade pip >/dev/null 2>&1 || true
 $PYTHON -m pip install fastapi uvicorn >/dev/null 2>&1 || true
 
 # -----------------------------
+# Find a free port
+# -----------------------------
+echo "[+] Finding free port..."
+PORT=$($PYTHON - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)
+
+echo "[✓] Using port: $PORT"
+
+# -----------------------------
 # Download connector
 # -----------------------------
 curl -fsSL https://raw.githubusercontent.com/kakashiplayz26606/24-7-Uptime/main/connector.py -o connector.py
+
+# -----------------------------
+# Start backend
+# -----------------------------
+nohup $PYTHON connector.py --port "$PORT" > connector.log 2>&1 &
+
+# -----------------------------
+# Wait until backend is reachable
+# -----------------------------
+echo "[+] Waiting for backend..."
+for i in {1..30}; do
+  if curl -s "http://127.0.0.1:$PORT" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
 
 # -----------------------------
 # Download cloudflared locally
@@ -63,37 +94,21 @@ if [ ! -f "./cloudflared" ]; then
 fi
 
 # -----------------------------
-# Start backend
+# Run cloudflared & capture URL
 # -----------------------------
-nohup $PYTHON connector.py > connector.log 2>&1 &
-
-# -----------------------------
-# Wait for backend (CRITICAL)
-# -----------------------------
-echo "[+] Waiting for backend on port 8080..."
-for i in {1..20}; do
-  if curl -s http://127.0.0.1:8080 >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.5
-done
-
-# -----------------------------
-# Start cloudflared quietly & extract URL
-# -----------------------------
-URL=$(./cloudflared tunnel --url http://localhost:8080 2>&1 \
+URL=$(./cloudflared tunnel --url "http://127.0.0.1:$PORT" 2>&1 \
   | grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare.com" \
   | head -n 1)
 
 # -----------------------------
-# Clean output
+# Final clean output
 # -----------------------------
 clear
 echo "========================================"
 echo "   Shadow Clouds 24/7 Uptime"
 echo "========================================"
 echo ""
-echo "Here is your Cloudflare URL:"
+echo "Your Cloudflare URL:"
 echo ""
 echo "$URL"
 echo ""
