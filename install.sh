@@ -1,63 +1,37 @@
 #!/usr/bin/env bash
 set -e
 
-APP_NAME="Shadow Clouds 24/7"
-PID_FILE=".tunnel.pid"
-LOG_FILE="cloudflared.log"
-URL_FILE=".tunnel_url"
+APP="Shadow Clouds 24/7"
+LOG="cloudflared.log"
+URL_FILE=".cloudflare_url"
+PID_FILE=".cloudflared.pid"
 
 clear
 echo "========================================"
-echo "   $APP_NAME"
+echo "   $APP"
 echo "========================================"
 echo ""
 
-echo "Choose platform:"
-echo "1) GitHub"
-echo "2) Google IDX"
-echo "3) CodeSandbox"
-echo ""
-read -p "Enter option (1/2/3): " OPTION
-
-echo ""
-echo "▶ Setting up environment..."
-
-# -----------------------------
-# Find Python
-# -----------------------------
+# ---------- Python ----------
 if command -v python3 >/dev/null 2>&1; then
-  PYTHON=python3
+  PY=python3
 elif command -v python >/dev/null 2>&1; then
-  PYTHON=python
+  PY=python
 else
-  echo "❌ Python not found"
+  echo "Python not found"
   exit 1
 fi
 
-# -----------------------------
-# Setup venv (safe)
-# -----------------------------
-if $PYTHON -m venv .venv >/dev/null 2>&1; then
-  if [ -f ".venv/bin/python" ]; then
-    PYTHON=".venv/bin/python"
-  fi
+# ---------- venv (safe) ----------
+if $PY -m venv .venv >/dev/null 2>&1; then
+  [ -f ".venv/bin/python" ] && PY=".venv/bin/python"
 fi
 
-# -----------------------------
-# Install deps
-# -----------------------------
-$PYTHON -m pip install --upgrade pip >/dev/null 2>&1 || true
-$PYTHON -m pip install fastapi uvicorn >/dev/null 2>&1 || true
+$PY -m pip install --upgrade pip >/dev/null 2>&1 || true
+$PY -m pip install fastapi uvicorn >/dev/null 2>&1 || true
 
-# -----------------------------
-# Download backend
-# -----------------------------
-curl -fsSL https://raw.githubusercontent.com/kakashiplayz26606/24-7-Uptime/main/connector.py -o connector.py
-
-# -----------------------------
-# Pick free port
-# -----------------------------
-PORT=$($PYTHON - <<'PY'
+# ---------- backend ----------
+PORT=$($PY - <<'PY'
 import socket
 s=socket.socket()
 s.bind(("",0))
@@ -66,45 +40,29 @@ s.close()
 PY
 )
 
-# -----------------------------
-# Start backend
-# -----------------------------
-nohup $PYTHON connector.py --port "$PORT" > connector.log 2>&1 &
+nohup $PY connector.py --port "$PORT" > backend.log 2>&1 &
 
-# Wait for backend
+# wait for backend
 for i in {1..30}; do
-  if curl -s "http://127.0.0.1:$PORT" >/dev/null 2>&1; then
-    break
-  fi
+  curl -s "http://127.0.0.1:$PORT" >/dev/null && break
   sleep 0.5
 done
 
-# -----------------------------
-# Download cloudflared
-# -----------------------------
-if [ ! -f "./cloudflared" ]; then
+# ---------- cloudflared ----------
+if [ ! -f cloudflared ]; then
   curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
   chmod +x cloudflared
 fi
 
-# -----------------------------
-# Start Cloudflare tunnel (background)
-# -----------------------------
-rm -f "$LOG_FILE" "$URL_FILE"
+rm -f "$LOG" "$URL_FILE"
 
-(
-  ./cloudflared tunnel --url "http://127.0.0.1:$PORT" \
-    > "$LOG_FILE" 2>&1
-) &
+# run tunnel
+( ./cloudflared tunnel --url "http://127.0.0.1:$PORT" > "$LOG" 2>&1 ) &
 echo $! > "$PID_FILE"
 
-# -----------------------------
-# Wait until URL appears
-# -----------------------------
-echo "[+] Waiting for Cloudflare URL..."
-
+# wait until URL appears
 for i in {1..60}; do
-  URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare.com" "$LOG_FILE" | head -n 1)
+  URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare.com" "$LOG" | head -n 1)
   if [ -n "$URL" ]; then
     echo "$URL" > "$URL_FILE"
     break
@@ -112,9 +70,7 @@ for i in {1..60}; do
   sleep 1
 done
 
-# -----------------------------
-# Final UI
-# -----------------------------
+# ---------- UI ----------
 clear
 echo "========================================"
 echo "   Shadow Clouds 24/7 Running"
@@ -126,41 +82,32 @@ if [ -f "$URL_FILE" ]; then
   echo ""
   cat "$URL_FILE"
 else
-  echo "❌ Failed to detect Cloudflare URL."
-  echo "Check cloudflared.log for details."
+  echo "❌ Failed to get Cloudflare URL."
+  echo "Check cloudflared.log"
 fi
 
 echo ""
 echo "Options:"
-echo "  r  → restart tunnel"
-echo "  q  → quit"
+echo "  r → restart tunnel"
+echo "  q → quit"
 echo "========================================"
 
-# -----------------------------
-# Interactive controls
-# -----------------------------
+# ---------- controls ----------
 while true; do
   read -n1 -s key
   case "$key" in
     r|R)
       echo ""
-      echo "[*] Restarting tunnel..."
+      echo "Restarting tunnel..."
 
-      if [ -f "$PID_FILE" ]; then
-        kill "$(cat $PID_FILE)" 2>/dev/null || true
-      fi
+      kill "$(cat $PID_FILE)" 2>/dev/null || true
+      rm -f "$LOG" "$URL_FILE"
 
-      rm -f "$LOG_FILE" "$URL_FILE"
-
-      (
-        ./cloudflared tunnel --url "http://127.0.0.1:$PORT" \
-          > "$LOG_FILE" 2>&1
-      ) &
+      ( ./cloudflared tunnel --url "http://127.0.0.1:$PORT" > "$LOG" 2>&1 ) &
       echo $! > "$PID_FILE"
 
       sleep 3
-
-      URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare.com" "$LOG_FILE" | head -n 1)
+      URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare.com" "$LOG" | head -n 1)
 
       clear
       echo "========================================"
@@ -171,14 +118,10 @@ while true; do
       echo ""
       echo "$URL"
       echo ""
-      echo "Press r to restart, q to quit"
+      echo "Press r to restart | q to quit"
       ;;
     q|Q)
-      echo ""
-      echo "Stopping..."
-      if [ -f "$PID_FILE" ]; then
-        kill "$(cat $PID_FILE)" 2>/dev/null || true
-      fi
+      kill "$(cat $PID_FILE)" 2>/dev/null || true
       exit 0
       ;;
   esac
