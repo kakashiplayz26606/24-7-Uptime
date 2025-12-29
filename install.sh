@@ -8,11 +8,6 @@ echo "   Shadow Clouds 24/7 Uptime Installer  "
 echo "========================================"
 echo ""
 
-OS="$(uname -s)"
-
-echo "Detected OS: $OS"
-echo ""
-
 echo "Choose platform:"
 echo "1) GitHub"
 echo "2) Google IDX"
@@ -25,61 +20,40 @@ echo "▶ Setting up environment..."
 sleep 1
 
 # ----------------------------
-# WINDOWS / MINGW / GIT BASH
+# Install Python if missing
 # ----------------------------
-if [[ "$OS" == *"MINGW"* || "$OS" == *"MSYS"* || "$OS" == *"CYGWIN"* ]]; then
-    echo "[!] Windows environment detected"
-
-    if ! command -v python >/dev/null 2>&1; then
-        echo ""
-        echo "❌ Python is not installed."
-        echo "👉 Download Python from:"
-        echo "https://www.python.org/downloads/windows/"
-        echo ""
-        echo "IMPORTANT:"
-        echo "✔ Enable 'Add Python to PATH' during install"
-        exit 1
-    fi
-
-    PYTHON="python"
-    PIP="pip"
-
-else
-    # Linux / VPS
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[+] Installing Python..."
-        sudo apt update -y
-        sudo apt install -y python3 python3-pip
-    fi
-
-    PYTHON="python3"
-    PIP="pip3"
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[+] Installing Python..."
+  sudo apt update -y
+  sudo apt install -y python3 python3-venv python3-pip
 fi
 
 # ----------------------------
-# Install Python packages
+# Create virtual environment
 # ----------------------------
-echo "[+] Installing Python packages..."
-$PIP install --upgrade pip
-$PIP install fastapi uvicorn
+if [ ! -d ".venv" ]; then
+  echo "[+] Creating virtual environment..."
+  python3 -m venv .venv
+fi
+
+# Activate venv
+source .venv/bin/activate
+
+# ----------------------------
+# Install Python deps safely
+# ----------------------------
+echo "[+] Installing Python packages inside venv..."
+pip install --upgrade pip
+pip install fastapi uvicorn
 
 # ----------------------------
 # Install cloudflared
 # ----------------------------
 if ! command -v cloudflared >/dev/null 2>&1; then
-    echo "[+] Installing Cloudflare Tunnel..."
-
-    if [[ "$OS" == *"MINGW"* || "$OS" == *"MSYS"* || "$OS" == *"CYGWIN"* ]]; then
-        echo "Download Cloudflared manually for Windows:"
-        echo "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
-        echo ""
-        echo "After install, re-run this script."
-        exit 1
-    else
-        curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-        chmod +x cloudflared
-        sudo mv cloudflared /usr/local/bin/cloudflared
-    fi
+  echo "[+] Installing Cloudflare Tunnel..."
+  curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+  chmod +x cloudflared
+  sudo mv cloudflared /usr/local/bin/cloudflared
 fi
 
 # ----------------------------
@@ -92,12 +66,12 @@ curl -fsSL https://raw.githubusercontent.com/kakashiplayz26606/24-7-Uptime/main/
 # Start backend
 # ----------------------------
 echo "[+] Starting FastAPI backend..."
-nohup $PYTHON connector.py > connector.log 2>&1 &
+nohup .venv/bin/python connector.py > connector.log 2>&1 &
 
 sleep 2
 
 # ----------------------------
-# Start Cloudflare tunnel
+# Start Cloudflare Tunnel
 # ----------------------------
 echo ""
 echo "========================================"
