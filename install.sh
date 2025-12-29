@@ -18,7 +18,7 @@ echo ""
 echo "▶ Setting up environment..."
 
 # -----------------------------
-# Detect Python
+# Python
 # -----------------------------
 if command -v python3 >/dev/null 2>&1; then
   PY=python3
@@ -30,7 +30,7 @@ else
 fi
 
 # -----------------------------
-# Create venv (safe)
+# Virtual env (safe)
 # -----------------------------
 if $PY -m venv .venv >/dev/null 2>&1; then
   if [ -f ".venv/bin/python" ]; then
@@ -48,33 +48,19 @@ $PY -m pip install fastapi uvicorn >/dev/null 2>&1 || true
 # -----------------------------
 # Download backend
 # -----------------------------
-echo "[+] Downloading connector.py"
+echo "[+] Downloading connector.py..."
 curl -fsSL https://raw.githubusercontent.com/kakashiplayz26606/24-7-Uptime/main/connector.py -o connector.py
 
 # -----------------------------
-# Pick port
+# Start backend on FIXED port 8080
 # -----------------------------
-PORT=$($PY - <<'PY'
-import socket
-s=socket.socket()
-s.bind(("",0))
-print(s.getsockname()[1])
-s.close()
-PY
-)
+echo "[+] Starting backend on http://localhost:8080"
+nohup $PY connector.py > backend.log 2>&1 &
 
-echo "[✓] Backend port: $PORT"
+sleep 3
 
 # -----------------------------
-# Start backend
-# -----------------------------
-echo "[+] Starting backend..."
-nohup $PY connector.py --port "$PORT" > backend.log 2>&1 &
-
-sleep 2
-
-# -----------------------------
-# Install cloudflared (local)
+# Download cloudflared
 # -----------------------------
 if [ ! -f "./cloudflared" ]; then
   echo "[+] Downloading cloudflared..."
@@ -83,7 +69,7 @@ if [ ! -f "./cloudflared" ]; then
 fi
 
 # -----------------------------
-# Start cloudflared (NORMAL MODE)
+# Start Cloudflare tunnel
 # -----------------------------
 echo ""
 echo "========================================"
@@ -92,4 +78,4 @@ echo " Copy the URL shown below"
 echo "========================================"
 echo ""
 
-./cloudflared tunnel --url "http://127.0.0.1:$PORT"
+./cloudflared tunnel --url http://localhost:8080
