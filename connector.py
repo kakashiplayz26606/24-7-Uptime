@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import time
+import uvicorn
 
 app = FastAPI()
 
@@ -11,8 +12,10 @@ def home():
 def ping():
     return {"pong": True, "time": time.time()}
 
-
 if __name__ == "__main__":
-    import uvicorn
-    print("Starting connector on port 8080...")
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(
+        "connector:app",
+        host="0.0.0.0",
+        port=8080,
+        log_level="error"
+    )
