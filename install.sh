@@ -19,74 +19,83 @@ echo ""
 echo "▶ Setting up environment..."
 sleep 1
 
-# -----------------------------------
+# -----------------------------
 # Detect python
-# -----------------------------------
+# -----------------------------
 if command -v python3 >/dev/null 2>&1; then
   PYTHON=python3
 elif command -v python >/dev/null 2>&1; then
   PYTHON=python
 else
-  echo "❌ Python not found. Install Python first."
+  echo "❌ Python not found."
   exit 1
 fi
 
-# -----------------------------------
-# Try creating venv (safe)
-# -----------------------------------
+# -----------------------------
+# Try venv (safe)
+# -----------------------------
 USE_VENV=false
-
 if $PYTHON -m venv .venv >/dev/null 2>&1; then
   if [ -f ".venv/bin/python" ]; then
-    USE_VENV=true
     PYTHON=".venv/bin/python"
-    echo "[✓] Virtual environment ready"
+    USE_VENV=true
   fi
 fi
 
-# -----------------------------------
-# Install dependencies
-# -----------------------------------
+# -----------------------------
+# Install deps
+# -----------------------------
 echo "[+] Installing Python packages..."
+$PYTHON -m pip install --upgrade pip >/dev/null 2>&1 || true
+$PYTHON -m pip install fastapi uvicorn >/dev/null 2>&1 || true
 
-if [ "$USE_VENV" = true ]; then
-  "$PYTHON" -m pip install --upgrade pip
-  "$PYTHON" -m pip install fastapi uvicorn
-else
-  echo "[!] Falling back to user install (no venv)"
-  $PYTHON -m pip install --user fastapi uvicorn || true
-fi
-
-# -----------------------------------
+# -----------------------------
 # Download connector
-# -----------------------------------
-echo "[+] Downloading connector..."
+# -----------------------------
 curl -fsSL https://raw.githubusercontent.com/kakashiplayz26606/24-7-Uptime/main/connector.py -o connector.py
 
-# -----------------------------------
-# Install cloudflared locally (NO sudo)
-# -----------------------------------
+# -----------------------------
+# Download cloudflared locally
+# -----------------------------
 if [ ! -f "./cloudflared" ]; then
-  echo "[+] Downloading Cloudflare Tunnel..."
   curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
   chmod +x cloudflared
 fi
 
-# -----------------------------------
+# -----------------------------
 # Start backend
-# -----------------------------------
-echo "[+] Starting FastAPI backend..."
+# -----------------------------
 nohup $PYTHON connector.py > connector.log 2>&1 &
 
-sleep 2
+# -----------------------------
+# Wait for backend (CRITICAL)
+# -----------------------------
+echo "[+] Waiting for backend on port 8080..."
+for i in {1..20}; do
+  if curl -s http://127.0.0.1:8080 >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
 
-# -----------------------------------
-# Start Cloudflare Tunnel
-# -----------------------------------
-echo ""
-echo "========================================"
-echo " 🌍 YOUR PUBLIC 24/7 URL WILL APPEAR BELOW"
-echo "========================================"
-echo ""
+# -----------------------------
+# Start cloudflared quietly & extract URL
+# -----------------------------
+URL=$(./cloudflared tunnel --url http://localhost:8080 2>&1 \
+  | grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare.com" \
+  | head -n 1)
 
-./cloudflared tunnel --url http://localhost:8080
+# -----------------------------
+# Clean output
+# -----------------------------
+clear
+echo "========================================"
+echo "   Shadow Clouds 24/7 Uptime"
+echo "========================================"
+echo ""
+echo "Here is your Cloudflare URL:"
+echo ""
+echo "$URL"
+echo ""
+echo "Keep this terminal open."
+echo "========================================"
