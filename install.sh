@@ -1,22 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 clear
 
-cat <<'EOF'
-========================================
- ███████╗██╗  ██╗ █████╗ ██████╗ 
- ██╔════╝██║  ██║██╔══██╗██╔══██╗
- ███████╗███████║███████║██║  ██║
- ╚════██║██╔══██║██╔══██║██║  ██║
- ███████║██║  ██║██║  ██║██████╔╝
- ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ 
-========================================
-      Shadow Clouds 24/7 Uptime
-========================================
-EOF
-
+echo "========================================"
+echo "   Shadow Clouds 24/7 Uptime Installer  "
+echo "========================================"
 echo ""
+
 echo "Choose platform:"
 echo "1) GitHub"
 echo "2) Google IDX"
@@ -29,29 +20,29 @@ echo "▶ Setting up environment..."
 sleep 1
 
 # -------------------------
-# Install Python if missing
+# Install Python
 # -------------------------
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[+] Installing Python..."
-  apt update -y
-  apt install -y python3 python3-pip
+  sudo apt update -y
+  sudo apt install -y python3 python3-pip
 fi
 
 # -------------------------
 # Install Python deps
 # -------------------------
 echo "[+] Installing Python packages..."
-pip3 install --upgrade pip >/dev/null
-pip3 install fastapi uvicorn >/dev/null
+python3 -m pip install --upgrade pip >/dev/null
+python3 -m pip install fastapi uvicorn >/dev/null
 
 # -------------------------
-# Install Cloudflare Tunnel
+# Install Cloudflared
 # -------------------------
 if ! command -v cloudflared >/dev/null 2>&1; then
   echo "[+] Installing Cloudflare Tunnel..."
   curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
   chmod +x cloudflared
-  mv cloudflared /usr/local/bin/cloudflared
+  sudo mv cloudflared /usr/local/bin/cloudflared
 fi
 
 # -------------------------
@@ -73,7 +64,7 @@ sleep 2
 # -------------------------
 echo ""
 echo "========================================"
-echo " 🌍 YOUR PUBLIC 24/7 URL WILL APPEAR BELOW"
+echo " 🌍 Your public 24/7 URL will appear below"
 echo "========================================"
 echo ""
 
