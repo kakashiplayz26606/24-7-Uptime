@@ -6,10 +6,7 @@ app = FastAPI()
 
 @app.get("/")
 def home():
-    return {
-        "status": "online",
-        "message": "CodeSandbox server running"
-    }
+    return {"status": "online", "platform": "codesandbox"}
 
 @app.get("/ping")
 def ping():
@@ -17,9 +14,4 @@ def ping():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=port)
